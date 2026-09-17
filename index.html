@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Cine-Stream — discover popular movies and build your watchlist." />
+  <title>Cine-Stream | Movie Explorer</title>
+  <link rel="preconnect" href="https://image.tmdb.org" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#/home" aria-label="Cine-Stream home"><span class="brand-mark">▶</span> cine<span>stream</span></a>
+    <nav aria-label="Main navigation">
+      <a href="#/home" data-route="home">Discover</a>
+      <a href="#/favorites" data-route="favorites">My Favorites <span id="favorite-count" class="count">0</span></a>
+    </nav>
+    <button id="settings-button" class="icon-button" type="button" aria-label="API settings">⚙</button>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-content">
+        <p class="eyebrow">YOUR NEXT OBSESSION</p>
+        <h1 id="hero-title">Find something<br /><em>worth watching.</em></h1>
+        <p class="hero-copy">Explore the world's most-loved movies, curated for your next movie night.</p>
+        <form id="search-form" class="search-bar">
+          <label class="sr-only" for="search-input">Search movies</label>
+          <span aria-hidden="true">⌕</span>
+          <input id="search-input" type="search" placeholder="Search for a movie..." autocomplete="off" />
+          <button type="submit">Search</button>
+        </form>
+        <form id="mood-form" class="mood-bar">
+          <label class="sr-only" for="mood-input">Describe your movie mood</label>
+          <span aria-hidden="true">✦</span>
+          <input id="mood-input" type="text" placeholder="Tell us your mood: “a funny space adventure”" autocomplete="off" />
+          <button type="submit">Mood match</button>
+        </form>
+        <p id="status-message" class="status" role="status"></p>
+      </div>
+      <div class="hero-glow" aria-hidden="true"></div>
+    </section>
+
+    <section class="catalog" aria-labelledby="catalog-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">CURATED FOR YOU</p><h2 id="catalog-title">Popular this week</h2></div>
+        <span id="results-label" class="results-label"></span>
+      </div>
+      <div id="movie-grid" class="movie-grid" aria-live="polite"></div>
+      <div id="loading" class="loading" hidden><span></span><span></span><span></span><b>Loading more movies…</b></div>
+      <div id="sentinel" class="sentinel" aria-hidden="true"></div>
+      <div id="empty-state" class="empty-state" hidden><div>◌</div><h3>No movies found</h3><p>Try another search or explore popular movies.</p><button id="reset-button" type="button">Back to popular</button></div>
+    </section>
+  </main>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" id="settings-form" class="settings-card">
+      <button class="dialog-close" value="cancel" aria-label="Close settings">×</button>
+      <p class="eyebrow">CONFIGURATION</p><h2>Connect your movie data</h2>
+      <p class="muted">Your keys stay in this browser and are never committed to the repository.</p>
+      <label for="tmdb-key">TMDB API key <span>(required)</span></label>
+      <input id="tmdb-key" type="password" placeholder="Paste your TMDB v3 API key" autocomplete="off" />
+      <label for="gemini-key">Gemini API key <span>(optional, for Mood Matcher)</span></label>
+      <input id="gemini-key" type="password" placeholder="Paste your Google AI API key" autocomplete="off" />
+      <button class="primary-button" value="save">Save settings</button>
+      <p class="settings-help">Get a free key at <a href="https://developer.themoviedb.org/docs/authentication-application" target="_blank" rel="noreferrer">developer.themoviedb.org</a>.</p>
+    </form>
+  </dialog>
+  <footer><span class="brand-mark">▶</span> cine-stream <span>·</span> Powered by TMDB</footer>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
