@@ -1,6 +1,10 @@
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
-const OMDB_BASE = 'https://www.omdbapi.com';
+const ENV = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+const ENV_KEY_MAP = {
+  'tmdb-key': 'VITE_TMDB_KEY',
+  'gemini-key': 'VITE_GEMINI_KEY',
+};
 
 const state = {
   page: 0,
@@ -9,13 +13,19 @@ const state = {
   loading: false,
   favorites: JSON.parse(localStorage.getItem('cine-stream-favorites') || '[]'),
   debounceTimer: null,
+  requestId: 0,
+  controller: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const grid = $('#movie-grid');
 
 function key(name) {
-  return localStorage.getItem(`cine-stream-${name}`) || '';
+  const localValue = localStorage.getItem(`cine-stream-${name}`);
+  if (localValue) return localValue;
+  const envKey = ENV_KEY_MAP[name];
+  const envValue = envKey ? ENV[envKey] : '';
+  return typeof envValue === 'string' ? envValue.trim() : '';
 }
 
 function setStatus(message = '') {
@@ -86,7 +96,7 @@ function route() {
   }
 }
 
-async function tmdb(path, params = {}) {
+async function tmdb(path, params = {}, signal) {
   const apiKey = key('tmdb-key');
 
   if (apiKey) {
@@ -95,7 +105,7 @@ async function tmdb(path, params = {}) {
       url.searchParams.set(keyName, value);
     });
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal });
     if (!response.ok) {
       throw new Error(`TMDB request failed (${response.status}). Check your API key.`);
     }
@@ -103,33 +113,8 @@ async function tmdb(path, params = {}) {
     return response.json();
   }
 
-  const omdbKey = key('omdb-key');
-  if (omdbKey && params.query) {
-    const url = new URL(OMDB_BASE);
-    url.searchParams.set('apikey', omdbKey);
-    url.searchParams.set('s', params.query);
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('OMDB request failed.');
-    const omdb = await response.json();
-    if (omdb.Response === 'False') {
-      throw new Error(omdb.Error || 'No results found.');
-    }
-    return {
-      results: (omdb.Search || []).map((item) => ({
-        id: Number.parseInt(item.imdbID.replace(/\D/g, ''), 10) || item.Title,
-        title: item.Title,
-        release_date: item.Year,
-        vote_average: item.imdbRating || 0,
-        poster_path: item.Poster && item.Poster !== 'N/A' ? item.Poster : '',
-      })),
-      page: 1,
-      total_pages: 1,
-      total_results: Number(omdb.totalResults) || (omdb.Search || []).length,
-    };
-  }
-
   $('#settings-dialog').showModal();
-  throw new Error('Add your TMDB API key in settings to load movies.');
+  throw new Error('Set VITE_TMDB_KEY in .env (or add TMDB key in settings) to load movies.');
 }
 
 function renderMovies(movies, append = false, favoritesMode = false) {
@@ -152,7 +137,7 @@ function renderMovies(movies, append = false, favoritesMode = false) {
 
     card.innerHTML = `
       <div class="poster">
-        <button class="favorite ${saved ? 'saved' : ''}" aria-label="${saved ? 'Remove' : 'Add'} ${movie.title} ${saved ? 'from' : 'to'} favorites">${saved ? '♥' : '♡'}</button>
+        <button type="button" class="favorite ${saved ? 'saved' : ''}" aria-pressed="${saved}" aria-label="${saved ? 'Remove' : 'Add'} ${movie.title} ${saved ? 'from' : 'to'} favorites">${saved ? '♥' : '♡'}</button>
         <img loading="lazy" src="${poster(movie)}" alt="${movie.title || 'Movie'} poster" />
       </div>
       <h3 class="movie-title" title="${movie.title || 'Untitled'}">${movie.title || 'Untitled'}</h3>
@@ -175,11 +160,13 @@ function toggleFavorite(movie, button) {
     state.favorites.push(movie);
     button.classList.add('saved');
     button.textContent = '♥';
+    button.setAttribute('aria-pressed', 'true');
     button.setAttribute('aria-label', `Remove ${movie.title} from favorites`);
   } else {
     state.favorites.splice(index, 1);
     button.classList.remove('saved');
     button.textContent = '♡';
+    button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', `Add ${movie.title} to favorites`);
   }
 
@@ -191,6 +178,12 @@ function toggleFavorite(movie, button) {
 }
 
 async function loadMovies({ reset = false } = {}) {
+  if (reset && state.controller) {
+    state.controller.abort();
+    state.controller = null;
+    state.loading = false;
+  }
+
   if (state.loading || (!reset && state.page >= state.totalPages)) return;
 
   if (reset) {
@@ -202,12 +195,18 @@ async function loadMovies({ reset = false } = {}) {
 
   setLoading(true);
   setStatus('');
+  const requestId = ++state.requestId;
+  const controller = new AbortController();
+  state.controller = controller;
 
   try {
     const query = state.query.trim();
+    const nextPage = state.page + 1;
     const data = query
-      ? await tmdb('/search/movie', { query, page: state.page + 1, include_adult: false })
-      : await tmdb('/movie/popular', { page: state.page + 1 });
+      ? await tmdb('/search/movie', { query, page: nextPage, include_adult: false }, controller.signal)
+      : await tmdb('/movie/popular', { page: nextPage }, controller.signal);
+
+    if (requestId !== state.requestId) return;
 
     state.page = data.page || state.page + 1;
     state.totalPages = Math.min(data.total_pages || 1, 500);
@@ -222,11 +221,15 @@ async function loadMovies({ reset = false } = {}) {
       $('#empty-state').hidden = false;
     }
   } catch (error) {
-    if (error.message !== 'Add your TMDB API key in settings to load movies.') {
-      setStatus(error.message);
-    }
+    if (error.name === 'AbortError') return;
+    setStatus(error.message);
   } finally {
-    setLoading(false);
+    if (state.controller === controller) {
+      state.controller = null;
+    }
+    if (requestId === state.requestId) {
+      setLoading(false);
+    }
   }
 }
 
@@ -273,10 +276,23 @@ $('#reset-button').addEventListener('click', () => {
 });
 
 async function moodMatch(prompt) {
+  const fallbackCatalog = [
+    { keyword: /sad|down|cry|melancholy|lonely/, title: 'The Secret Life of Walter Mitty' },
+    { keyword: /action|adrenaline|thrill|intense/, title: 'Mad Max: Fury Road' },
+    { keyword: /romance|love|date|heart/, title: 'La La Land' },
+    { keyword: /family|kids|warm|comfort/, title: 'Paddington 2' },
+    { keyword: /scary|horror|dark|tense/, title: 'A Quiet Place' },
+    { keyword: /funny|comedy|laugh|light/, title: 'The Grand Budapest Hotel' },
+  ];
+  const fallback = fallbackCatalog.find((item) => item.keyword.test(prompt.toLowerCase()))?.title || 'Inception';
   const geminiKey = key('gemini-key');
   if (!geminiKey) {
-    setStatus('Add an optional Gemini API key in settings to use Mood Matcher.');
-    $('#settings-dialog').showModal();
+    const fallbackMessage = `Mood Matcher fallback picked “${fallback}”. Add VITE_GEMINI_KEY (optional) for AI suggestions.`;
+    state.query = fallback;
+    $('#search-input').value = fallback;
+    $('#mood-input').value = '';
+    loadMovies({ reset: true });
+    setStatus(fallbackMessage);
     return;
   }
 
@@ -307,7 +323,12 @@ async function moodMatch(prompt) {
     $('#mood-input').value = '';
     loadMovies({ reset: true });
   } catch (error) {
-    setStatus(error.message);
+    const fallbackMessage = `${error.message} Using fallback title “${fallback}”.`;
+    state.query = fallback;
+    $('#search-input').value = fallback;
+    $('#mood-input').value = '';
+    loadMovies({ reset: true });
+    setStatus(fallbackMessage);
   }
 }
 
@@ -331,7 +352,6 @@ observer.observe($('#sentinel'));
 $('#settings-button').addEventListener('click', () => {
   $('#tmdb-key').value = key('tmdb-key');
   $('#gemini-key').value = key('gemini-key');
-  $('#omdb-key').value = key('omdb-key');
   $('#settings-dialog').showModal();
 });
 
@@ -341,7 +361,6 @@ $('#settings-form').addEventListener('submit', (event) => {
   event.preventDefault();
   localStorage.setItem('cine-stream-tmdb-key', $('#tmdb-key').value.trim());
   localStorage.setItem('cine-stream-gemini-key', $('#gemini-key').value.trim());
-  localStorage.setItem('cine-stream-omdb-key', $('#omdb-key').value.trim());
   $('#settings-dialog').close();
   loadMovies({ reset: true });
 });
