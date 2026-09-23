@@ -51,6 +51,29 @@
       <div id="sentinel" class="sentinel" aria-hidden="true"></div>
       <div id="empty-state" class="empty-state" hidden><div>◌</div><h3>No movies found</h3><p>Try another search or explore popular movies.</p><button id="reset-button" type="button">Back to popular</button></div>
     </section>
+
+    <section class="catalog posts-catalog" aria-labelledby="posts-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">TRACK B INTEGRATION</p><h2 id="posts-title">Community Posts</h2></div>
+      </div>
+      <form id="post-form" class="post-form">
+        <label for="post-title">Title</label>
+        <input id="post-title" name="title" type="text" required maxlength="120" />
+        <label for="post-content">Content</label>
+        <textarea id="post-content" name="content" rows="4" required></textarea>
+        <label for="post-image">Image (optional)</label>
+        <input id="post-image" name="image" type="file" accept="image/*" />
+        <button type="submit">Create post</button>
+      </form>
+      <p id="posts-status" class="status" role="status"></p>
+      <div id="posts-loading" class="loading" hidden><span></span><span></span><span></span><b>Loading posts…</b></div>
+      <div id="posts-list" class="posts-list" aria-live="polite"></div>
+      <div id="posts-empty" class="empty-state" hidden>
+        <div>⌁</div>
+        <h3>No posts yet</h3>
+        <p>Create the first post using the form above.</p>
+      </div>
+    </section>
   </main>
 
   <dialog id="settings-dialog">

@@ -1,3 +1,5 @@
+import { setupPostsIntegration } from './posts.js';
+
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 const OMDB_BASE = 'https://www.omdbapi.com';
@@ -356,3 +358,5 @@ if (!location.hash) {
   history.replaceState({}, '', '#/home');
   route();
 }
+
+setupPostsIntegration();
